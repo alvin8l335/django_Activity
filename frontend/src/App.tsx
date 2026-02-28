@@ -1,176 +1,188 @@
-import React, { useEffect, useState } from "react";
-import { Product } from "./types";
-import { getProducts, createProduct, deleteProduct, getCategories, updateProduct } from "./api";
-import ProductList from "./component/ProductList";
-import "./App.css"; // Ensure you created this file!
+import React, { useEffect, useState } from 'react';
+import axios from 'axios';
+import { Category, Product, Customer, Order } from './types';
+import { DataTable } from './components/DataTable';
 
-const App: React.FC = () => {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [categories, setCategories] = useState<any[]>([]);
+const API_BASE = "http://localhost:8000/api";
 
-  // Form Field States
-  const [name, setName] = useState("");
-  const [price, setPrice] = useState<number>(0);
-  const [manuDate, setManuDate] = useState("2026-01-01");
-  const [expDate, setExpDate] = useState("2027-01-01");
-  const [selectedCategory, setSelectedCategory] = useState<number>(1);
+function App() {
+    const [categories, setCategories] = useState<Category[]>([]);
+    const [products, setProducts] = useState<Product[]>([]);
+    const [customers, setCustomers] = useState<Customer[]>([]);
+    
+    // UI State
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [currentView, setCurrentView] = useState<'categories' | 'products' | 'customers'>('categories');
+    const [formData, setFormData] = useState<any>({});
+    const [editingId, setEditingId] = useState<number | null>(null);
 
-  // Mode States
-  const [isEditing, setIsEditing] = useState(false);
-  const [editId, setEditId] = useState<number | null>(null);
-
-  const fetchInitialData = async () => {
-    try {
-      const [prodData, catData] = await Promise.all([getProducts(), getCategories()]);
-      setProducts(prodData);
-      setCategories(catData);
-      if (catData.length > 0 && !isEditing) {
-        setSelectedCategory(catData[0].id || catData[0].category_id);
-      }
-    } catch (error) {
-      console.error("Fetch Error:", error);
-    }
-  };
-
-  useEffect(() => {
-    fetchInitialData();
-  }, []);
-
-  // Calculation Logic
-  const totalValue = products.reduce((sum, product) => sum + Number(product.price), 0);
-
-  const startEdit = (product: Product) => {
-    setIsEditing(true);
-    setEditId(product.product_id);
-    setName(product.product_name);
-    setPrice(product.price);
-    setSelectedCategory(product.category);
-    setManuDate(product.manu_date);
-    setExpDate(product.exp_date);
-  };
-
-  const handleSave = async () => {
-    const payload = {
-      product_name: name,
-      price: price,
-      category: selectedCategory,
-      manu_date: manuDate,
-      exp_date: expDate
+    const refreshData = async () => {
+        try {
+            const [c, p, cust] = await Promise.all([
+                axios.get(`${API_BASE}/categories/`),
+                axios.get(`${API_BASE}/products/`),
+                axios.get(`${API_BASE}/customers/`)
+            ]);
+            setCategories(c.data);
+            setProducts(p.data);
+            setCustomers(cust.data);
+        } catch (err) { console.error("Error loading data", err); }
     };
 
-    try {
-      if (isEditing && editId) {
-        await updateProduct(editId, payload); 
-      } else {
-        await createProduct(payload); 
-      }
-      resetForm();
-      fetchInitialData();
-    } catch (error) {
-      console.error("Save failed:", error);
-    }
-  };
+    useEffect(() => { refreshData(); }, []);
 
-  const handleDelete = async (id: number) => {
-    try {
-      await deleteProduct(id);
-      fetchInitialData();
-    } catch (error) {
-      console.error("Delete failed:", error);
-    }
-  };
+    // Open Modal for Add
+    const openAddModal = (view: 'categories' | 'products' | 'customers') => {
+        setCurrentView(view);
+        setEditingId(null);
+        setFormData({});
+        setIsModalOpen(true);
+    };
 
-  const resetForm = () => {
-    setIsEditing(false);
-    setEditId(null);
-    setName("");
-    setPrice(0);
-    setManuDate("2026-01-01");
-    setExpDate("2027-01-01");
-  };
+    // Open Modal for Edit
+    const openEditModal = (view: any, item: any, idField: string) => {
+        setCurrentView(view);
+        setEditingId(item[idField]);
+        setFormData(item);
+        setIsModalOpen(true);
+    };
 
-  return (
-    <div className="dashboard-container">
-      <h1 style={{ textAlign: "center", color: "#1a73e8", marginBottom: "30px" }}>
-        Inventory Manager
-      </h1>
-      
-      <div className="form-card">
-        <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
-          <label><small>Product Name</small></label>
-          <input placeholder="e.g. Lenovo Laptop" value={name} onChange={(e) => setName(e.target.value)} />
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        const endpoint = `${API_BASE}/${currentView}/`;
+        try {
+            if (editingId) {
+                await axios.put(`${endpoint}${editingId}/`, formData);
+            } else {
+                await axios.post(endpoint, formData);
+            }
+            setIsModalOpen(false);
+            refreshData();
+        } catch (err) { alert("Error saving data. Check console."); }
+    };
+
+    const handleDelete = async (endpoint: string, id: number) => {
+        if (window.confirm("Delete this item?")) {
+            await axios.delete(`${API_BASE}/${endpoint}/${id}/`);
+            refreshData();
+        }
+    };
+
+    return (
+        <div className="min-h-screen bg-gray-100 p-8">
+            <div className="max-w-6xl mx-auto space-y-10">
+                
+                {/* 1. CATEGORIES TABLE */}
+                <DataTable 
+                    title="Categories" 
+                    headers={['ID', 'Name']} 
+                    data={categories} 
+                    onAdd={() => openAddModal('categories')}
+                    renderRow={(c: Category) => (
+                        <tr key={c.category_id}>
+                            <td className="px-6 py-4">{c.category_id}</td>
+                            <td className="px-6 py-4 font-bold">{c.category_name}</td>
+                            <td className="px-6 py-4 text-right space-x-4">
+                                <button onClick={() => openEditModal('categories', c, 'category_id')} className="text-indigo-600 hover:underline">Edit</button>
+                                <button onClick={() => handleDelete('categories', c.category_id)} className="text-red-600 hover:underline">Delete</button>
+                            </td>
+                        </tr>
+                    )}
+                />
+
+                {/* 2. PRODUCTS TABLE */}
+                <DataTable 
+                    title="Products" 
+                    headers={['Name', 'Price', 'Exp Date']} 
+                    data={products} 
+                    onAdd={() => openAddModal('products')}
+                    renderRow={(p: Product) => (
+                        <tr key={p.product_id}>
+                            <td className="px-6 py-4">{p.product_name}</td>
+                            <td className="px-6 py-4 text-green-600 font-bold">${p.price}</td>
+                            <td className="px-6 py-4">{p.exp_date}</td>
+                            <td className="px-6 py-4 text-right space-x-4">
+                                <button onClick={() => openEditModal('products', p, 'product_id')} className="text-indigo-600 hover:underline">Edit</button>
+                                <button onClick={() => handleDelete('products', p.product_id)} className="text-red-600 hover:underline">Delete</button>
+                            </td>
+                        </tr>
+                    )}
+                />
+
+                {/* 3. CUSTOMERS TABLE */}
+                <DataTable 
+                    title="Customers" 
+                    headers={['Name', 'Contact', 'Address']} 
+                    data={customers} 
+                    onAdd={() => openAddModal('customers')}
+                    renderRow={(cust: Customer) => (
+                        <tr key={cust.customer_id}>
+                            <td className="px-6 py-4">{cust.name}</td>
+                            <td className="px-6 py-4">{cust.contact}</td>
+                            <td className="px-6 py-4">{cust.address}</td>
+                            <td className="px-6 py-4 text-right space-x-4">
+                                <button onClick={() => openEditModal('customers', cust, 'customer_id')} className="text-indigo-600 hover:underline">Edit</button>
+                                <button onClick={() => handleDelete('customers', cust.customer_id)} className="text-red-600 hover:underline">Delete</button>
+                            </td>
+                        </tr>
+                    )}
+                />
+            </div>
+
+            {/* SHARED MODAL FORM */}
+            {isModalOpen && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-lg p-8 max-w-md w-full shadow-2xl">
+                        <h2 className="text-2xl font-bold mb-6 text-indigo-700">
+                            {editingId ? 'Edit' : 'Add'} {currentView.slice(0, -1)}
+                        </h2>
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                            {currentView === 'categories' && (
+                                <input 
+                                    className="w-full border p-2 rounded" 
+                                    placeholder="Category Name"
+                                    value={formData.category_name || ''}
+                                    onChange={e => setFormData({...formData, category_name: e.target.value})}
+                                    required
+                                />
+                            )}
+                            {currentView === 'customers' && (
+                                <>
+                                    <input className="w-full border p-2 rounded" placeholder="Name" value={formData.name || ''} onChange={e => setFormData({...formData, name: e.target.value})} required />
+                                    <input className="w-full border p-2 rounded" placeholder="Address" value={formData.address || ''} onChange={e => setFormData({...formData, address: e.target.value})} required />
+                                    <input className="w-full border p-2 rounded" type="number" placeholder="Contact" value={formData.contact || ''} onChange={e => setFormData({...formData, contact: e.target.value})} required />
+                                    <input className="w-full border p-2 rounded" type="number" placeholder="Age" value={formData.age || ''} onChange={e => setFormData({...formData, age: e.target.value})} required />
+                                </>
+                            )}
+                            {currentView === 'products' && (
+                                <>
+                                    <input className="w-full border p-2 rounded" placeholder="Product Name" value={formData.product_name || ''} onChange={e => setFormData({...formData, product_name: e.target.value})} required />
+                                    <input className="w-full border p-2 rounded" type="number" placeholder="Price" value={formData.price || ''} onChange={e => setFormData({...formData, price: e.target.value})} required />
+                                    <input className="w-full border p-2 rounded" type="date" placeholder="Manu Date" value={formData.manu_date || ''} onChange={e => setFormData({...formData, manu_date: e.target.value})} required />
+                                    <input className="w-full border p-2 rounded" type="date" placeholder="Exp Date" value={formData.exp_date || ''} onChange={e => setFormData({...formData, exp_date: e.target.value})} required />
+                                    <select 
+                                        className="w-full border p-2 rounded"
+                                        value={formData.category || ''}
+                                        onChange={e => setFormData({...formData, category: e.target.value})}
+                                        required
+                                    >
+                                        <option value="">Select Category</option>
+                                        {categories.map(cat => (
+                                            <option key={cat.category_id} value={cat.category_id}>{cat.category_name}</option>
+                                        ))}
+                                    </select>
+                                </>
+                            )}
+                            <div className="flex justify-end space-x-3 mt-6">
+                                <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-gray-500">Cancel</button>
+                                <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">Save Changes</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
-          <label><small>Price (₱)</small></label>
-          <input type="number" value={price} onChange={(e) => setPrice(Number(e.target.value))} />
-        </div>
-        
-        <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
-          <label><small>Category</small></label>
-          <select value={selectedCategory} onChange={(e) => setSelectedCategory(Number(e.target.value))}>
-            {categories.map((cat) => (
-              <option key={cat.id || cat.category_id} value={cat.id || cat.category_id}>
-                {cat.name || cat.category_name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
-          <label><small>Mfg Date</small></label>
-          <input type="date" value={manuDate} onChange={(e) => setManuDate(e.target.value)} />
-        </div>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
-          <label><small>Exp Date</small></label>
-          <input type="date" value={expDate} onChange={(e) => setExpDate(e.target.value)} />
-        </div>
-        
-        <div style={{ display: "flex", alignItems: "flex-end", gap: "10px" }}>
-          <button 
-            onClick={handleSave} 
-            style={{ 
-              backgroundColor: isEditing ? "#ffc107" : "#1a73e8", 
-              color: "white",
-              width: "100%",
-              height: "40px"
-            }}
-          >
-            {isEditing ? "Update Item" : "Add Product"}
-          </button>
-          {isEditing && (
-            <button onClick={resetForm} style={{ height: "40px", backgroundColor: "#6c757d", color: "white" }}>
-              Cancel
-            </button>
-          )}
-        </div>
-      </div>
-
-      <hr style={{ border: "0", borderTop: "1px solid #eee", margin: "20px 0" }} />
-
-      <ProductList 
-        products={products} 
-        onDelete={handleDelete} 
-        onEdit={startEdit} 
-      />
-
-      <div style={{ 
-        marginTop: "30px", 
-        padding: "20px", 
-        backgroundColor: "#f8f9fa", 
-        borderRadius: "8px",
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center"
-      }}>
-        <h2 style={{ margin: 0, fontSize: "1.2em" }}>Total Portfolio Value</h2>
-        <span className="price-tag" style={{ fontSize: "1.5em" }}>
-          ₱{totalValue.toLocaleString()}
-        </span>
-      </div>
-    </div>
-  );
-};
+    );
+}
 
 export default App;

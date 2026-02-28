@@ -1,67 +1,19 @@
-/* src/App.css */
-body {
-  background-color: #f0f2f5;
-  margin: 0;
-  color: #333;
+/* Custom subtle fade-in for table rows */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
-.dashboard-container {
-  max-width: 900px;
-  margin: 40px auto;
-  padding: 20px;
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+tr {
+    animation: fadeIn 0.3s ease-in-out both;
 }
 
-.form-card {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 15px;
-  background: #ffffff;
-  padding: 20px;
-  border: 1px solid #e1e4e8;
-  border-radius: 8px;
-  margin-bottom: 30px;
+/* Custom scrollbar for the table container */
+.overflow-x-auto::-webkit-scrollbar {
+    height: 6px;
 }
 
-input, select {
-  padding: 10px;
-  border: 1px solid #ccc;
-  border-radius: 5px;
-  font-size: 14px;
-}
-
-button {
-  padding: 10px 20px;
-  border: none;
-  border-radius: 5px;
-  font-weight: bold;
-  cursor: pointer;
-  transition: opacity 0.2s;
-}
-
-button:hover {
-  opacity: 0.8;
-}
-
-.product-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 15px;
-  border-bottom: 1px solid #eee;
-}
-
-.product-info strong {
-  font-size: 1.1em;
-  color: #2c3e50;
-}
-
-.price-tag {
-  background: #e8f5e9;
-  color: #2e7d32;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-weight: bold;
+.overflow-x-auto::-webkit-scrollbar-thumb {
+    background-color: #e2e8f0;
+    border-radius: 10px;
 }
